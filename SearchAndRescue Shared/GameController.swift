@@ -244,27 +244,6 @@ class GameController: NSObject, ExtraProtocols {
         setActiveCamera("camLookAt_cameraGame", animationDuration: 0.0)
     }
 
-    func loadParticleSystems(atPath path: String) -> [SCNParticleSystem] {
-        let url = URL(fileURLWithPath: path)
-        let directory = url.deletingLastPathComponent()
-
-        let fileName = url.lastPathComponent
-        let ext: String = url.pathExtension
-
-        if ext == "scnp" {
-            return [SCNParticleSystem(named: fileName, inDirectory: directory.relativePath)!]
-        } else {
-            var particles = [SCNParticleSystem]()
-            let scene = SCNScene(named: fileName, inDirectory: directory.relativePath, options: nil)
-            scene!.rootNode.enumerateHierarchy({(_ node: SCNNode, _ _: UnsafeMutablePointer<ObjCBool>) -> Void in
-                if node.particleSystems != nil {
-                    particles += node.particleSystems!
-                }
-            })
-            return particles
-        }
-    }
-
 
     func setupPlatforms() {
         let PLATFORM_MOVE_OFFSET = Float(1.5)
@@ -345,13 +324,7 @@ class GameController: NSObject, ExtraProtocols {
         }
         SCNTransaction.commit()
     }
-
-    func setActiveCamera(_ cameraName: String) {
-        setActiveCamera(cameraName, animationDuration: GameController.DefaultCameraTransitionDuration)
-    }
-
     
-
     // MARK: - Init
 
     init(scnView: SCNView) {
@@ -407,18 +380,6 @@ class GameController: NSObject, ExtraProtocols {
         character!.queueResetCharacterPosition()
     }
 
-    // MARK: - cinematic
-
-    func startCinematic() {
-        playingCinematic = true
-        character!.node!.isPaused = true
-    }
-
-    func stopCinematic() {
-        playingCinematic = false
-        character!.node!.isPaused = false
-    }
-
     
 
     // MARK: - Controlling the character
@@ -467,132 +428,7 @@ class GameController: NSObject, ExtraProtocols {
         
         lastUpdateTime = time
 
-        // stop here if cinematic
-        if playingCinematic == true {
-            return
-        }
-
         // update characters
         character!.update(atTime: time, with: renderer)
     }
-
-    // MARK: - Configure rendering quality
-
-    func turnOffEXRForMAterialProperty(property: SCNMaterialProperty) {
-        if var propertyPath = property.contents as? NSString {
-            if propertyPath.pathExtension == "exr" {
-                propertyPath = ((propertyPath.deletingPathExtension as NSString).appendingPathExtension("png")! as NSString)
-                property.contents = propertyPath
-            }
-        }
-    }
-
-    func turnOffEXR() {
-        self.turnOffEXRForMAterialProperty(property: scene!.background)
-        self.turnOffEXRForMAterialProperty(property: scene!.lightingEnvironment)
-
-        scene?.rootNode.enumerateChildNodes { (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            if let materials = child.geometry?.materials {
-                for material in materials {
-                    self.turnOffEXRForMAterialProperty(property: material.selfIllumination)
-                }
-            }
-        }
-    }
-
-    func turnOffNormalMaps() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            if let materials = child.geometry?.materials {
-                for material in materials {
-                    material.normal.contents = SKColor.black
-                }
-            }
-        })
-    }
-
-    func turnOffHDR() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            child.camera?.wantsHDR = false
-        })
-    }
-
-    func turnOffDepthOfField() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            child.camera?.wantsDepthOfField = false
-        })
-    }
-
-    func turnOffSoftShadows() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            if let lightSampleCount = child.light?.shadowSampleCount {
-                child.light?.shadowSampleCount = min(lightSampleCount, 1)
-            }
-        })
-    }
-
-    func turnOffPostProcess() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            if let light = child.light {
-                light.shadowCascadeCount = 0
-                light.shadowMapSize = CGSize(width: 1024, height: 1024)
-            }
-        })
-    }
-
-    func turnOffOverlay() {
-        sceneRenderer?.overlaySKScene = nil
-    }
-
-    func turnOffVertexShaderModifiers() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            if var shaderModifiers = child.geometry?.shaderModifiers {
-                shaderModifiers[SCNShaderModifierEntryPoint.geometry] = nil
-                child.geometry?.shaderModifiers = shaderModifiers
-            }
-
-            if let materials = child.geometry?.materials {
-                for material in materials where material.shaderModifiers != nil {
-                    var shaderModifiers = material.shaderModifiers!
-                    shaderModifiers[SCNShaderModifierEntryPoint.geometry] = nil
-                    material.shaderModifiers = shaderModifiers
-                }
-            }
-        })
-    }
-
-    func turnOffVegetation() {
-        scene?.rootNode.enumerateChildNodes({ (child: SCNNode, _: UnsafeMutablePointer<ObjCBool>) in
-            guard let materialName = child.geometry?.firstMaterial?.name as NSString? else { return }
-            if materialName.hasPrefix("plante") {
-                child.isHidden = true
-            }
-        })
-    }
-
-
-    // MARK: - Debug menu
-
-    func fStopChanged(_ value: CGFloat) {
-        sceneRenderer!.pointOfView!.camera!.fStop = value
-    }
-
-    func focusDistanceChanged(_ value: CGFloat) {
-        sceneRenderer!.pointOfView!.camera!.focusDistance = value
-    }
-
-    func debugMenuSelectCameraAtIndex(_ index: Int) {
-        if index == 0 {
-            let key = self.scene?.rootNode .childNode(withName: "key", recursively: true)
-            key?.opacity = 1.0
-        }
-        self.setActiveCamera("CameraDof\(index)")
-    }
-
-
-
-
-
-
-
-
 }
